@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const Loc = mongoose.model('Location');
+const User = mongoose.model('User');
 
 const doSetAverageRating = async (location) => {
     if (location.reviews && location.reviews.length > 0) {
@@ -18,21 +19,31 @@ const doSetAverageRating = async (location) => {
     }
 };
 
-const doAddReview = async (req, res, location) => {
+const doAddReview = (req, res, location, author) => {
     if (!location) {
-        return res.status(404).json({ "message": "Location not found" });
-    }
-
-    const { author, rating, reviewText } = req.body;
-    location.reviews.push({ author, rating, reviewText });
-
-    try {
-        const updatedLocation = await location.save();
-        await updateAverageRating(updatedLocation._id);
-        const thisReview = updatedLocation.reviews.slice(-1).pop();
-        return res.status(201).json(thisReview);
-    } catch (err) {
-        return res.status(400).json(err);
+        res
+            .status(404)
+            .json({"message": "location not found" });
+    } else {
+        const {rating, reviewText} = req.body;
+        location.reviews.push({
+            author,
+            rating,
+            reviewText
+        });
+        location.save((err, location) => {
+            if (err) {
+                return res
+                    .status(400)
+                    .json(err);
+            } else {
+                updateAverageRating(location._id);
+                const thisReview = location.reviews.slice(-1).pop();
+                return res
+                    .status(201)
+                    .json(thisReview);
+            }
+        });
     }
 };
 
@@ -47,24 +58,30 @@ const updateAverageRating = async (locationId) => {
     }
 };
 
-const reviewsCreate = async (req, res) => {
-    const locationId = req.params.locationid;
-    if (!locationId) {
-        return res.status(404).json({ "message": "Location not found" });
-    }
-
-    try {
-        const location = await Loc.findById(locationId).select('reviews').exec();
-        if (location) {
-            await doAddReview(req, res, location);
-        } else {
-            return res.status(404).json({ "message": "Location not found" });
-        }
-    } catch (err) {
-        return res.status(400).json(err);
-    }
+const reviewsCreate = (req, res) => {
+  getAuthor(req, res,
+      (req, res, userName) => {
+      const locationId = req.params.locationid;
+      if (locationId) {
+          Loc
+              .findById(locationId)
+              .select('reviews')
+              .exec((err, location) => {
+                  if (err) {
+                      res
+                          .status(400)
+                          .json(err);
+                  } else {
+                      doAddReview(req, res, location, userName);
+                  }
+              });
+      } else {
+          res
+              .status(404)
+              .json({"message": "Location not found"});
+      }
+      });
 };
-
 const reviewsReadOne = async (req, res) => {
     try {
         const location = await Loc.findById(req.params.locationid).select('name reviews').exec();
@@ -125,7 +142,6 @@ const reviewsUpdateOne = async (req, res) => {
         return res.status(400).json(err);
     }
 };
-
 const reviewsDeleteOne = async (req, res) => {
     const { locationid, reviewid } = req.params;
     if (!locationid || !reviewid) {
@@ -145,25 +161,8 @@ const reviewsDeleteOne = async (req, res) => {
             }
 
             review.remove();
-            await location.save((err, location) => {
-                if (err) {
-                    console.log(err);
-                    res
-                        .status(404)
-                        .json(err);
-                } else {
-                    updateAverageRating(location._id);
-                    let thisReview = location.reviews[location.reviews.length - 1];
-                    res
-                        .status(201)
-                            .json(thisReview);
-                }
-            });
+            await location.save();
             await updateAverageRating(location._id);
-            let thisReview = location.reviews[location.reviews.length - 1];
-            res
-                .status(201)
-                    .json(thisReview);
             return res.status(204).json(null);
         } else {
             return res.status(404).json({ 'message': 'No Review to delete' });

@@ -58,4 +58,7 @@ process.on('SIGTERM', () => {
 
 connect();
 
+// BRING IN YOUR SCHEMAS & MODELS
 require('./locations');
+
+require('./users');
