@@ -1,5 +1,4 @@
 var request = require('request');
-const {response} = require("express");
 
 const apiOptions = {
     server: 'http://localhost:3000'
@@ -10,38 +9,36 @@ if(process.env.NODE_ENV === 'production'){
 
 const homelist = (req, res) => {
     const path = '/api/locations';
-    const requestOptions = {
-        url: `${apiOptions.server}${path}`,
-        method: 'GET',
-        json: {},
-        qs: {
-            lng: 126.9780,
-            lat: 37.5665,
-            maxDistance: 50000000
+    const requestOptions ={
+        url:`${apiOptions.server}${path}`,
+        method:'GET',
+        json:{},
+        qs:{
+            lng: 126.964062,
+            lat: 37.468769,
+            maxDistance: 200
         }
     };
-    request(
-        requestOptions,
-        (err, response, body) => {
-            let data = [];
-            if (response.statusCode === 200 && body.length) {
-                data = body.map((item) => {
-                    item.distance = formatDistance(item.distance);
-                    return item;
-                });
-            }
-            renderHomepage(req, res, body);
-        }
-    );
+    request(requestOptions,(err, {statusCode}, body) => {
+        let data =[];
+        if(statusCode === 200 && body.length){
+            data = body.map( (item) =>{
+                item.distance = formatDistance(item.distance);
+                return item;
+            });
+        };
+
+        renderHomepage(req,res,data);
+    });
 };
 
 const renderHomepage = (req, res, responseBody) => {
     let message = null;
-    if (!(responseBody instanceof Array)) {
+    if(!(responseBody instanceof Array)) {
         message = "API lookup error";
         responseBody = [];
-    } else {
-        if (!responseBody.length) {
+    } else{
+        if(!responseBody.length){
             message = "No places found nearby";
         }
     }
@@ -49,11 +46,9 @@ const renderHomepage = (req, res, responseBody) => {
         title: 'Loc8r - find a place to work with wifi',
         pageHeader: {
             title: 'Loc8r',
-            strapline: 'Find places to work with wifi near you!'
+            strapLine: 'Find places to work with wifi near you!'
         },
-        sidebar: "Looking for wifi and a seat? Loc8r helps you find places \
-            to work when out and about. Perhaps with coffee, cake or a pint? \
-            Let Loc8r help you find the place you're looking for.",
+        sidebar: "Looking for wifi and a seat? Loc8r helps you find places to work when out and about. Perhaps with coffee, cake or a pint? Let Loc8r help you find the place you're looking for.",
         locations: responseBody,
         message
     });
@@ -87,67 +82,66 @@ const renderDetailPage = (req, res, location) =>{
     });
 }
 
-const locationInfo = (req, res) => {
-    getLocationInfo(req, res, (req, res, responseData) => {
-        renderDetailPage(req, res, responseData);
-    });
-};
-
-const getLocationInfo = (req, res, callback) => {
-    const path = `/api/locations/${req.params.locationid}`;
-    const requestOptions = {
-        url: `${apiOptions.server}${path}`,
-        method: 'GET',
-        json: {}
-    };
-    request(
-        requestOptions,
-        (err, {statusCode}, body) => {
-            let data = body;
-            if (statusCode === 200) {
-                data.coords = {
-                    lng: body.coords.coordinates[0],
-                    lat: body.coords.coordinates[1]
-                };
-                callback(req, res, data);
-            } else {
-                showError(req, res, statusCode);
-            }
-        }
-    )
-};
 const showError = (req, res, status) => {
     let title = '';
     let content = '';
-    if (status === 404) {
-        title = '404, page not found';
-        content = 'Oh dear. Looks like we can\'t find this page. Sorry.';
-    } else {
+    if(status === 404){
+        title = '404, page note found';
+        content = 'Oh dear. Looks like you can\'t find this page. Sorry.';
+    } else{
         title = `${status}, something's gone wrong`;
-        content = 'Something, somewhere, has gone just a little bit wrong.';
+        contetn = 'Something, somewhere, hase gone just a little bit wrong.';
     }
     res.status(status);
-    res.render('generic-text', {
+    res.render('generic-text',{
         title,
         content
     });
 };
 
-const renderReviewForm = function (req, res, {name}) {
-  res.render('location-review-form', {
-      title: `Review ${name} on Loc8r`,
-      pageHeader: { title: `Review ${name}` },
-      error: req.query.err
-      });
-};
-/* GET 'Add review' page */
-const addReview = (req, res) => {
-    getLocationInfo(req, res, (req, res, responseData) => {
-        renderReviewForm(req, res, responseData);
+const renderReviewForm = (req, res, {name}) => {
+    res.render('location-review-form', {
+        title: `Review ${name} on Loc8r`,
+        pageHeader: { title: `Review ${name}` },
+        error: req.query.err
     });
 };
 
-const doAddReview = (req, res) => {
+const getLocationInfo =(req,res,callback) => {
+    const path = `/api/locations/${req.params.locationid}`;
+    const requestOptions ={
+        url:`${apiOptions.server}${path}`,
+        method:'GET',
+        json:{},
+    };
+    request(requestOptions,(err, {statusCode}, body) => {
+        let data = body;
+        if(statusCode === 200){
+            data.coords={
+                lng: body.coords.coordinates[0],
+                lat: body.coords.coordinates[1]
+            };
+            callback(req,res,data);
+        } else{
+            showError(req,res,statusCode);
+        }
+    });
+};
+
+const locationInfo = (req, res) => {
+    getLocationInfo(req,res,
+        (req,res,responseData) => renderDetailPage(req,res,responseData)
+    );
+};
+
+/* GET 'Add review' page */
+const addReview = (req, res) => {
+    getLocationInfo(req,res,
+        (req,res,responseData) => renderReviewForm(req,res,responseData)
+    );
+};
+
+const doAddReview = (req,res) =>{
     const locationid = req.params.locationid;
     const path = `/api/locations/${locationid}/reviews`;
     const postdata = {
@@ -160,18 +154,19 @@ const doAddReview = (req, res) => {
         method: 'POST',
         json: postdata
     };
-    if (!postdata.author || !postdata.rating || !postdata.reviewText) {
+    if(!postdata.author || !postdata.rating || !postdata.reviewText){
         res.redirect(`/location/${locationid}/review/new?err=val`);
     } else {
         request(
             requestOptions,
             (err, {statusCode}, {name}) => {
-                if (statusCode === 201) {
+                if(statusCode === 201){
                     res.redirect(`/location/${locationid}`);
-                } else if (statusCode === 400 && name && name === 'ValidationError') {
+                }else if(statusCode === 400 && name && name ==='ValidationError'){
                     res.redirect(`/location/${locationid}/review/new?err=val`);
-                } else {
-                    showError(req, res, statusCode);
+                }
+                else{
+                    showError(req,res,statusCode);
                 }
             }
         );
